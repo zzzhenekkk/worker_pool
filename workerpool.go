@@ -17,13 +17,34 @@ type WorkerPool struct {
 	mu          sync.Mutex
 	wg          sync.WaitGroup
 	stopOnce    sync.Once
+	dataHandler DataProcessor
 }
 
-func NewWorkerPool() *WorkerPool {
-	return &WorkerPool{
+// DataProcessor определяет тип функции для обработки данных с идентификатором воркера.
+type DataProcessor func(workerID int, data interface{})
+
+// defaultDataHandler - дефолтный обработчик, обрабатывает строки, выводя их на экран
+func defaultDataHandler(workerID int, data interface{}) {
+	if str, ok := data.(string); ok {
+		fmt.Printf("Вокрер %d обрабатывает данные: %s\n", workerID, str)
+	} else {
+		fmt.Printf("Вокрер %d, данные не являются строкой: %v\n", workerID, data)
+	}
+}
+
+func NewWorkerPool(processor ...DataProcessor) *WorkerPool {
+	wp := &WorkerPool{
 		input:   make(chan string),
 		workers: make(map[int]chan struct{}),
 	}
+
+	if len(processor) == 0 {
+		wp.dataHandler = defaultDataHandler
+	} else {
+		wp.dataHandler = processor[0]
+	}
+
+	return wp
 }
 
 func (wp *WorkerPool) AddWorker() {
@@ -49,7 +70,7 @@ func (wp *WorkerPool) startWorker(workerID int, stopChan chan struct{}) {
 				wp.stopAll()
 				return
 			}
-			fmt.Printf("Воркер %d обрабатывает данные: %s\n", workerID, data)
+			wp.dataHandler(workerID, data)
 		case <-stopChan:
 			fmt.Printf("Воркер %d останавливается\n", workerID)
 			return

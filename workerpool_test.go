@@ -1,6 +1,7 @@
 package workerpool
 
 import (
+	"fmt"
 	"strconv"
 	"sync"
 	"testing"
@@ -218,4 +219,35 @@ func TestRemoveWorkerFirstActiveNoWorkers(t *testing.T) {
 	if wp.CountActiveWorkers() != 0 {
 		t.Errorf("Expected 0 active workers, got %d", wp.CountActiveWorkers())
 	}
+}
+
+func TestWorkerWithDataPrcessor(t *testing.T) {
+	received := make(chan string, 10) // Буферизованный канал для хранения полученных данных
+	handler := func(workerID int, data interface{}) {
+		if str, ok := data.(string); ok {
+			received <- fmt.Sprintf("Worker %d str: %s", workerID, str)
+		}
+	}
+
+	wp := NewWorkerPool(handler)
+	wp.AddWorker()
+	wp.AddWorker()
+
+	wp.InputChannel() <- "test 1"
+	wp.InputChannel() <- "test 2"
+
+	wp.CloseWP()
+
+	wp.Wait()
+
+	close(received)
+
+	if len(received) != 2 {
+		t.Errorf("Expected to receive 2 messages, got %d", len(received))
+	}
+
+	for v := range received {
+		fmt.Println(v)
+	}
+
 }
